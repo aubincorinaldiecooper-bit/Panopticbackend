@@ -1,0 +1,12 @@
+# Only the key-protected API is reachable; everything else on vLLM is not.
+{$MINICPM_DOMAIN} {
+	@api path /v1/*
+	handle @api {
+		reverse_proxy vllm:8000 {
+			flush_interval -1
+		}
+	}
+	handle {
+		respond 404
+	}
+}

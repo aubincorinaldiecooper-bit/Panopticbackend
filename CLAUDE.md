@@ -41,6 +41,8 @@ Cleanup is different: code and documentation that describe a retired architectur
 
 The engine that reads footage is VideoChat3 on Modal, with Qwen embeddings and the Qwen reranker between its two reads. Omni-SimpleMem is the persistent memory around that engine.
 
+The live internet search is the exception, by the owner's decision of 2026-11-26: its scouts watch with MiniCPM-V 4.6, served by vLLM on the team's own GPU server (`gpu/minicpm/`, `INTERNET_WATCHER=minicpm`), because MiniCPM performed better in the owner's experience and Modal is no longer used. VideoChat3 stays selectable for it (`INTERNET_WATCHER=videochat3`) until a measured run on the new GPU settles the comparison. Uploaded-video retrieval below still runs on Modal and needs its own decision.
+
 1. After preprocessing, SimpleMem indexes the video when `SIMPLEMEM_INDEX_ENABLED=true`.
 2. With `RETRIEVAL_PRIMARY=videochat3` (the default), a question about an uploaded video goes to SimpleMem first when uploads are indexed. SimpleMem returns timestamped candidates. Those candidates are leads, not final evidence; they go through Qwen embedding, Qwen reranking, and VideoChat3 verification of the actual footage.
 3. When memory has no verified answer, the footage is read the way an internet video is read: VideoChat3 watches the analysis proxy for the question, Qwen embeddings and the Qwen reranker order what it flagged, and VideoChat3 re-opens each candidate before it becomes evidence. A watch that verified nothing completes the request; the stretch after the watch's event cap, if it is reached, is recorded as unexamined.

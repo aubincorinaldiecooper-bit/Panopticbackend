@@ -11,8 +11,9 @@ vi.mock('../src/services/discovery/searxng.js', () => ({ search: () => found() }
 vi.mock('../src/services/retrieval/videoModelScoutRuntime.js', () => ({
   createVideoModelScoutRuntime: () => ({ inspect: (input: { candidate: Candidate; plan: ScoutInspectionPlan }) => inspect(input) }),
 }));
-vi.mock('../src/services/video/adapters/videochat3.js', () => ({
-  videoChat3Adapter: { id: 'videochat3', sourceKinds: new Set(['frame-stream']), assertReady: async () => undefined },
+// The search takes its watcher from internetWatcher(); this stands in for whichever is chosen.
+vi.mock('../src/services/video/adapters/internetWatcher.js', () => ({
+  internetWatcher: () => ({ id: 'videochat3', sourceKinds: new Set(['frame-stream']), assertReady: async () => undefined }),
 }));
 vi.mock('../src/lib/logger.js', () => ({
   logger: { child: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }), info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },

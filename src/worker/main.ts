@@ -33,6 +33,7 @@ import { handleLearningReport } from './handlers/learningReport.js';
 import { handleInternetSearch } from './handlers/internetSearch.js';
 import { handleInternetVideoSearch } from './handlers/internetVideoSearch.js';
 import { assertVideoChat3WorkerReady } from './startup/videochat3.js';
+import { assertMiniCpmWatcherReady } from '../services/minicpm/watcher.js';
 
 const workers: Worker[] = [];
 
@@ -131,6 +132,13 @@ function checkVideoProviderConfig(): void {
       'RETRIEVAL_PRIMARY=videochat3 requires MODAL_TOKEN_ID and MODAL_TOKEN_SECRET on the worker: VideoChat3 and the Qwen services run on Modal',
     );
   }
+  // Missing configuration is not something waiting will fix, so it stops the worker.
+  if (env.INTERNET_WATCHER === 'minicpm' && (!env.MINICPM_WATCHER_URL || !env.MINICPM_WATCHER_API_KEY)) {
+    throw new Error('INTERNET_WATCHER=minicpm requires MINICPM_WATCHER_URL and MINICPM_WATCHER_API_KEY on the worker');
+  }
+  if (env.INTERNET_WATCHER === 'videochat3' && (!env.MODAL_TOKEN_ID || !env.MODAL_TOKEN_SECRET)) {
+    throw new Error('INTERNET_WATCHER=videochat3 requires MODAL_TOKEN_ID and MODAL_TOKEN_SECRET on the worker: VideoChat3 runs on Modal');
+  }
 }
 
 async function checkBinaries(): Promise<void> {
@@ -168,6 +176,7 @@ async function main(): Promise<void> {
     videoCallConcurrency: env.OPENROUTER_VIDEO_CONCURRENCY,
     retrievalPrimary: env.RETRIEVAL_PRIMARY,
     simplememIndexing: env.SIMPLEMEM_INDEX_ENABLED,
+    internetWatcher: env.INTERNET_WATCHER,
   });
 
   checkVideoProviderConfig();
@@ -176,6 +185,22 @@ async function main(): Promise<void> {
 
   if (env.RETRIEVAL_PRIMARY === 'videochat3') {
     await assertVideoChat3WorkerReady();
+  }
+
+  // The GPU server may be off between test runs or switched on only when
+  // needed, so an unreachable watcher does not stop the worker: uploads and
+  // everything else still run, and each internet search checks the watcher
+  // again first and ends early, naming the reason, if it cannot be reached.
+  if (env.INTERNET_WATCHER === 'minicpm') {
+    try {
+      await assertMiniCpmWatcherReady();
+      logger.info('MiniCPM watcher reachable', { model: env.MINICPM_WATCHER_MODEL });
+    } catch (error) {
+      logger.warn('MiniCPM watcher not reachable at startup; internet searches will report it until it is', {
+        model: env.MINICPM_WATCHER_MODEL,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   if (env.VIDEO_PROVIDER === 'minicpm') {

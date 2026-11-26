@@ -1,0 +1,58 @@
+# MiniCPM-V 4.6 for Clipit's live internet search, on one GPU server.
+#
+# vLLM serves the model over an OpenAI-compatible API; Caddy is the only thing
+# that faces the network and forwards ONLY /v1/* to it, with TLS. That matters:
+# vLLM's API key guards /v1 but other routes on the same server (including
+# /invocations, which runs the model) are unauthenticated, so vLLM itself is
+# never published. Lock the firewall to the engine's server as well (README).
+#
+# Pinned: the vLLM release that first shipped MiniCPM-V 4.6 support in an
+# image we checked exists (v0.34.0), and the exact model revision.
+services:
+  vllm:
+    image: vllm/vllm-openai:v0.34.0
+    restart: unless-stopped
+    ipc: host
+    environment:
+      VLLM_API_KEY: ${MINICPM_API_KEY:?set MINICPM_API_KEY in .env}
+    volumes:
+      - hf-cache:/root/.cache/huggingface
+    expose:
+      - "8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    command:
+      - openbmb/MiniCPM-V-4.6
+      - --revision
+      - 97328f3c2d70c4645b6a35594807eb6932068635
+      - --served-model-name
+      - openbmb/MiniCPM-V-4.6
+      - --max-model-len
+      - "16384"
+      - --gpu-memory-utilization
+      - "0.85"
+      - --limit-mm-per-prompt
+      - '{"image": 32}'
+
+  caddy:
+    image: caddy:2.8.4
+    restart: unless-stopped
+    depends_on:
+      - vllm
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      MINICPM_DOMAIN: ${MINICPM_DOMAIN:?set MINICPM_DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+
+volumes:
+  hf-cache:
+  caddy-data:

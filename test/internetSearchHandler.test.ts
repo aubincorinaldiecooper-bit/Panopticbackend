@@ -12,8 +12,9 @@ vi.mock('../src/services/retrieval/videoModelScoutRuntime.js', () => ({
   createVideoModelScoutRuntime: () => ({ inspect: (input: { candidate: Candidate; plan: ScoutInspectionPlan; onMoment?: (moment: any) => Promise<void> | void }) => inspect(input) }),
 }));
 const assertReady = vi.fn<[string], Promise<void>>();
-vi.mock('../src/services/video/adapters/videochat3.js', () => ({
-  videoChat3Adapter: { id: 'videochat3', sourceKinds: new Set(['frame-stream']), assertReady: (kind: string) => assertReady(kind) },
+// The search takes its watcher from internetWatcher(); this stands in for whichever is chosen.
+vi.mock('../src/services/video/adapters/internetWatcher.js', () => ({
+  internetWatcher: () => ({ id: 'videochat3', sourceKinds: new Set(['frame-stream']), assertReady: (kind: string) => assertReady(kind) }),
 }));
 
 const logged: Array<{ level: string; message: string; context: Record<string, unknown> }> = [];

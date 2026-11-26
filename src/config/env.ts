@@ -158,6 +158,38 @@ const envSchema = z.object({
    */
   MINICPM_WARM_IDLE_SECONDS: int(300, 30, 3600),
   /**
+   * Which model watches internet videos for the live search's scouts.
+   *
+   * `minicpm` is the owner's choice (2026-11-26): MiniCPM-V 4.6 served by
+   * vLLM on the team's own GPU server, reached over its OpenAI-compatible
+   * API at MINICPM_WATCHER_URL. `videochat3` is the earlier Modal watcher,
+   * kept selectable until a measured run on the new GPU settles it.
+   */
+  INTERNET_WATCHER: z.enum(['minicpm', 'videochat3']).default('minicpm'),
+  /** The vLLM server's OpenAI-compatible base, ending in /v1. */
+  MINICPM_WATCHER_URL: z.string().url().optional(),
+  /** The key the vLLM server was started with (`--api-key`). Server-side only. */
+  MINICPM_WATCHER_API_KEY: z.string().trim().min(1).optional(),
+  /** The model name the vLLM server answers to (`--served-model-name`). */
+  MINICPM_WATCHER_MODEL: z.string().trim().min(1).default('openbmb/MiniCPM-V-4.6'),
+  /** The model revision the server was started with, recorded on every watch. Not checked against the server. */
+  MINICPM_WATCHER_REVISION: z.string().trim().min(1).optional(),
+  /**
+   * How much source time one look covers. The watcher sees each window's
+   * frames together, so a moment that unfolds over a few seconds is judged
+   * as a whole rather than frame by frame.
+   */
+  MINICPM_WATCH_WINDOW_SECONDS: int(8, 2, 30),
+  /** At most this many frames per window, spread evenly across it. */
+  MINICPM_WATCH_FRAMES_PER_WINDOW: int(8, 1, 32),
+  /**
+   * Windows waiting for the model, per watcher. The browser plays in real
+   * time; if the model falls further behind than this, the oldest waiting
+   * window is skipped and recorded as unexamined, never as watched.
+   */
+  MINICPM_WATCH_MAX_PENDING_WINDOWS: int(3, 1, 16),
+  MINICPM_WATCH_TIMEOUT_SECONDS: int(60, 5, 600),
+  /**
    * The narrowest source-space 9:16 crop still worth delivering as a
    * smart_crop, in pixels of real source width.
    *

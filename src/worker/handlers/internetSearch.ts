@@ -5,7 +5,7 @@ import { search, type Candidate } from '../../services/discovery/searxng.js';
 import { decideEnding } from '../../services/retrieval/internetSearchOutcome.js';
 import { runScoutSwarm, type ScoutInspectionPlan, type ScoutId, type SwarmMoment } from '../../services/retrieval/scoutSwarm.js';
 import { createVideoModelScoutRuntime } from '../../services/retrieval/videoModelScoutRuntime.js';
-import { videoChat3Adapter } from '../../services/video/adapters/videochat3.js';
+import { internetWatcher } from '../../services/video/adapters/internetWatcher.js';
 import { createWebFrameStreamSource } from '../../services/video/webFrameSource.js';
 
 function required(name: string): string {
@@ -179,6 +179,8 @@ export async function handleInternetSearch(job: Job<InternetSearchJob>): Promise
   const log = logger.child({ search_id: searchId, component: 'internet_search' });
   const report = async (progress: InternetSearchProgress) => job.updateProgress(progress as unknown as Record<string, unknown>);
   const searchStartedAt = Date.now();
+  // One watcher for the whole search, so its moments are never a mix of models.
+  const watcher = internetWatcher();
 
   await report({ phase: 'loading', moments: [], candidatesFound: 0 });
   const discoveryStartedAt = Date.now();
@@ -188,7 +190,7 @@ export async function handleInternetSearch(job: Job<InternetSearchJob>): Promise
     const done: InternetSearchProgress = { phase: 'answered', moments: [], candidatesFound: 0, candidatesWatched: 0, outcome: 'no_candidates', candidates: [] };
     await report(done);
     log.info('internet search finished', {
-      model: videoChat3Adapter.id,
+      model: watcher.id,
       query_length: job.data.query.length,
       discovery_ms: discoveryMs,
       candidates_discovered: 0,
@@ -214,7 +216,7 @@ export async function handleInternetSearch(job: Job<InternetSearchJob>): Promise
   const candidates = discovered.slice(0, maxCandidates);
 
   log.info('internet search started', {
-    model: videoChat3Adapter.id,
+    model: watcher.id,
     stream_v2: realtimeV2,
     query_length: job.data.query.length,
     discovery_ms: discoveryMs,
@@ -232,7 +234,7 @@ export async function handleInternetSearch(job: Job<InternetSearchJob>): Promise
   // watcher cannot, there is nothing to learn from finding that out once per
   // page: stop here, name it, and spend nothing on browsers or queues.
   try {
-    await videoChat3Adapter.assertReady?.('frame-stream');
+    await watcher.assertReady?.('frame-stream');
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     const ending = decideEnding({ candidatesFound: candidates.length, candidatesWatched: 0, candidatesFullyWatched: 0, momentsFound: 0, failureReasons: [reason] });
@@ -247,7 +249,7 @@ export async function handleInternetSearch(job: Job<InternetSearchJob>): Promise
     };
     await report(done);
     log.error('internet search could not start', {
-      model: videoChat3Adapter.id,
+      model: watcher.id,
       stream_v2: realtimeV2,
       query_length: job.data.query.length,
       discovery_ms: discoveryMs,
@@ -267,7 +269,7 @@ export async function handleInternetSearch(job: Job<InternetSearchJob>): Promise
   }
 
   const runtime = createVideoModelScoutRuntime<Candidate>({
-    model: videoChat3Adapter,
+    model: watcher,
     sourceForInspection: (candidate: Candidate, plan: ScoutInspectionPlan, scoutId: ScoutId) => createWebFrameStreamSource({
       id: `${searchId}:${candidate.id}:${scoutId}:${plan.mode}:${plan.startSeconds.toFixed(1)}-${plan.endSeconds.toFixed(1)}`,
       pageUrl: candidate.pageUrl,
@@ -368,7 +370,7 @@ export async function handleInternetSearch(job: Job<InternetSearchJob>): Promise
     // was known at the last progress event is written down here before the
     // error carries on to fail the job.
     log.error('internet search stopped part-way', {
-      model: videoChat3Adapter.id,
+      model: watcher.id,
       stream_v2: realtimeV2,
       query_length: job.data.query.length,
       discovery_ms: discoveryMs,
@@ -460,7 +462,7 @@ export async function handleInternetSearch(job: Job<InternetSearchJob>): Promise
 
   const record = ending.phase === 'failed' ? log.error.bind(log) : log.info.bind(log);
   record(ending.phase === 'failed' ? 'internet search failed' : 'internet search finished', {
-    model: videoChat3Adapter.id,
+    model: watcher.id,
     stream_v2: realtimeV2,
     query_length: job.data.query.length,
     discovery_ms: discoveryMs,
